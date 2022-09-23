@@ -1,0 +1,176 @@
+= 编写单元测试：控制器层
+
+
+由于我们的 API 已经准备就绪，我们应该有一个控制器层。正如我之前所说，在为控制器层编写单元测试时，
+我们应该确保其他层（repository/service）不受影响。我们必须模拟对象！
+
+这是控制器测试类的基本结构！
+
+[source,java]
+----
+@ExtendWith(SpringExtension.class)
+@WebMvcTest(OrderController.class)
+public class OrderControllerUnitTest {
+
+    @Autowired
+    private MockMvc mockMvc;
+
+    @MockBean
+    private OrderService orderService;
+
+}
+----
+
+* 使用 *WebMvcTest* 注解将禁用完全自动配置，而仅应用与 MVC 测试相关的配置（即 `@Controller`、`@ControllerAdvice`、`@JsonComponent`、`Converter`/`GenericConverter`、`Filter`、`WebMvcConfigurer` 和 `HandlerMethodArgumentResolver` bean 但不是 `@Component`、`@Service` 或 `@Repository` bean）——来源：Java doc
+* *SpringExtension* 将 Spring TestContext Framework 集成到 JUnit 5 的 Jupiter 编程模型中。
+* *MockMVC* 类是 Spring MVC 测试框架的一部分，它有助于测试控制器显式启动 Servlet 容器。
+* *MockBean* 用于将模拟对象添加到 Spring 应用程序上下文中。这种方式可以创建假对象并执行操作。我们需要在此处注入 *Service* 的模拟来执行模拟行为。稍后将讨论。
+
+👉 ✔️ 让我们为获取订单的方法编写一个测试。
+
+[source,java]
+----
+@Test
+public void testGetOrdersList() throws Exception {
+    when(orderService.getOrders()).thenReturn(Collections.singletonList(order));
+    mockMvc.perform(get("/api/orders"))
+        .andDo(print())
+        .andExpect(status().isOk())
+        .andExpect(content().contentType(MediaType.APPLICATION_JSON))
+        .andExpect(jsonPath("$", hasSize(1)))
+        .andExpect(jsonPath("$").isArray());
+}
+----
+
+我将在这里逐行解释… 😎
+
+*Mockito When 子句*
+
+[quart]
+____
+Mockito 为我们提供了一种模拟实际行为的方法。它的格式是这样的…
+
+when(something happens).thenReturn(do something)
+
+OR thenThrow(exception)
+____
+
+在这里，我们应该调用 order service 层并在 *when()* 子句中获取订单。
+该方法应该返回我们放在 *thenReturn()* 中的响应。在此行之后，此测试方法将执行模拟操作运行时并为下一步准备订单列表。
+
+然后我们调用 *MockMvc* 对象并使用相关 URL 执行 GET API 调用。
+然后，我们可以将任意数量的 *ResultAction* 绑定到此 API 调用。
+
+*— andDo(print())*: 打印结果
+*— andExpect()*: 在响应体、响应格式、响应状态码等各个方面设置预期结果。
+
+我已经检查了这些点: — API 返回 200 状态码 => *isOk()* 方法 — 响应内容是 JSON => *content()* 方法 — 响应 JSON 是否包含数组 => *isArray()* 方法 — 响应大小是否为 1 => *hasSize()* 方法
+
+🔴 这里，“$” 表示响应 JSON 根级别。因为这个 GET API 是这样返回响应的，所以我们必须使用那个表示法。
+
+[source,json]
+----
+[
+    {
+        "id": 1,
+        "buyer": "peter",
+        "price": 30.0,
+        "qty": 3
+    }
+]
+----
+
+如果我们有不同嵌套格式的结果，我们应该使用相关的键。假设我们在 “data” 键中包含结果。
+
+[source,json]
+----
+{
+    "data": [
+       {
+            "id": 1,
+            "buyer": "peter",
+            "price": 30.0,
+            "qty": 3
+        }
+    ]
+}
+----
+
+然后我们应该像这样更改代码：
+
+[source,java]
+----
+.andExpect(jsonPath("$.data", hasSize(1)))
+.andExpect(jsonPath("$.data").isArray());
+----
+
+👉 ✔️ 让我们编写一个获取订单的测试。
+
+也会如此。唯一的变化是响应格式——对象而不是数组。
+
+[source,java]
+----
+@Test
+public void testGetOrderById() throws Exception {
+    when(orderService.getOrderById(10L)).thenReturn(order);
+    mockMvc.perform(get("/api/orders/10"))
+        .andDo(print())
+        .andExpect(status().isOk())
+        .andExpect(content().contentType(MediaType.APPLICATION_JSON))
+        .andExpect(jsonPath("$.buyer", is("andrew")))
+        .andExpect(jsonPath("$.id", is(10)))
+        .andExpect(jsonPath("$").isNotEmpty());
+}
+----
+
+👉 ✔️ 让我们编写一个**创建新订单**的测试。
+也一样，但这次 MockMvc 将使用方法体执行 *POST* 调用！我们必须提供一个 JSON 字符串作为请求体。
+所以我们需要将我们的 *Pojo 转换为 JSON 字符串*。我们可以使用 *Jackson* library 中的 *Object Mapper*。
+
+[source,java]
+----
+private final ObjectMapper objectMapper = new ObjectMapper();
+----
+
+我创建了 POST API 来返回 201 状态代码。
+因此，在 Result 操作中，我使用 *isCreated() — 201* 方法来匹配响应状态，而不是 *isOk() — 200* 方法。
+
+[source,java]
+----
+@Test
+public void testCreateOrder() throws Exception {
+    when(orderService.createOrder(order)).thenReturn(order);
+    mockMvc.perform(
+        post("/api/orders")
+            .content(objectMapper.writeValueAsString(order))
+            .contentType(MediaType.APPLICATION_JSON)
+        )
+        .andDo(print())
+        .andExpect(status().isCreated())
+        .andExpect(content().contentType(MediaType.APPLICATION_JSON))
+        .andExpect(jsonPath("$.buyer", is("andrew")))
+        .andExpect(jsonPath("$.id", is(10)))
+        .andExpect(jsonPath("$").isNotEmpty());
+}
+----
+
+👉 ✔️ 让我们为**删除 Order 的方法**编写一个测试。
+
+[source,java]
+----
+@Test
+public void testDeleteOrder() throws Exception {
+    Order order = new Order(10L, "andrew", 40.0, 2);
+    when(orderService.deleteOrderById(order.getId())).thenReturn(true);
+    mockMvc.perform(delete("/api/orders/" + order.getId()))
+        .andDo(print())
+        .andExpect(status().isOk());
+}
+----
+
+同样的事情也发生在这里。没什么特别的！在这里，我们在控制器方法中为 DELETE 返回一个布尔值。😎
+
+现在控制器的基本测试用例已经完成！ ❤️
+
+
+现在运行测试类并查看结果… 💪 全部通过! 😍

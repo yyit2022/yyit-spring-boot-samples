@@ -1,0 +1,143 @@
+= 编写单元测试：服务层
+
+
+在这一层，我们将隔离服务层并测试服务方法。模拟注解将创建一个服务层的模拟对象。
+如前所述，这里也使用 *ExtendWith* 扩展来模拟测试环境。
+
+[source,java]
+----
+@ExtendWith(SpringExtension.class)
+public class OrderServiceUnitTest {
+
+    @Mock
+    private OrderService orderService;
+
+}
+----
+
+👉 ✔️ 让我们为获取订单的方法编写一个测试。
+
+
+我创建了 2 个订单并添加到列表中。然后我使用 Mockito *when()* 子句来模拟行为。
+
+
+下一部分在这里有所不同。我们在服务层测试中使用 *Junit Assertions*。
+我们可以断言相等/ 不相等/ NULL 场景。*第一个参数总是期望值*，*第二个是实际值*。
+
+我们在这里不需要 MockMvc，因为这是从 web 层下降了一步。
+
+[source,java]
+----
+@Test
+public void testGetOrdersList() {
+    Order order1 = new Order(8L, "ben", 80.0, 5);
+    Order order2 = new Order(9L, "kevin", 70.0, 2);
+    when(orderService.getOrders()).thenReturn(Arrays.asList(order1, order2));
+    assertEquals(orderService.getOrders().size(), 2);
+    assertEquals(orderService.getOrders().get(0).getBuyer(), "ben");
+    assertEquals(orderService.getOrders().get(1).getBuyer(), "kevin");
+    assertEquals(orderService.getOrders().get(0).getPrice(), 80.0);
+    assertEquals(orderService.getOrders().get(1).getPrice(), 70.0);
+    assertNotEquals(orderService.getOrders().get(0).getBuyer(), null);
+    assertNotEquals(orderService.getOrders().get(1).getBuyer(), null);
+}
+----
+
+👉 ✔️ 让我们为**通过 ID 获取 Order** 的方法编写一个服务测试。没有什么新东西。请参阅下面的代码。一样的东西！！不是吗？
+
+[source,java]
+----
+@Test
+public void testGetOrderById() {
+    Order order = new Order(7L, "george", 60.0, 6);
+    when(orderService.getOrderById(7L)).thenReturn(order);
+    assertEquals(orderService.getOrderById(7L).getBuyer(), "george");
+    assertEquals(orderService.getOrderById(7L).getPrice(), 60.0);
+    assertNotEquals(orderService.getOrderById(7L).getBuyer(), null);
+}
+----
+
+👉 ✔️ 让我们编写一个用于**获取无效订单**的服务测试。
+那里我们必须**期望一个 OrderNotFoundException** 因为 ID 在数据库中不可用。
+这是一个否定的测试用例。
+在这里，*assertThrows()* 可用于故意抛出异常，并将其与异常消息中的实际值进行比较。
+我已经检查了字符串消息内容的相等性。
+
+[source,java]
+----
+@Test
+public void testGetInvalidOrderById() {
+    when(orderService.getOrderById(17L)).thenThrow(new OrderNotFoundException("Order Not Found with ID"));
+    Exception exception = assertThrows(OrderNotFoundException.class, () -> {
+        orderService.getOrderById(17L);
+    });
+    assertTrue(exception.getMessage().contains("Order Not Found with ID"));
+}
+----
+
+👉 ✔️让我们编写一个用于**创建新订单**的服务测试。在这种情况下，有一些新的东西要学习! 😎
+
+[source,java]
+----
+@Test
+public void testCreateOrder() {
+    Order order = new Order(12L, "john", 90.0, 6);
+    orderService.createOrder(order);
+    verify(orderService, times(1)).createOrder(order);
+    ArgumentCaptor<Order> orderArgumentCaptor = ArgumentCaptor.forClass(Order.class);
+    verify(orderService).createOrder(orderArgumentCaptor.capture());
+    Order orderCreated = orderArgumentCaptor.getValue();
+    assertNotNull(orderCreated.getId());
+    assertEquals("john", orderCreated.getBuyer());
+}
+----
+
+在这里，我像以前一样省略了 *when()* 子句。我们只需要调用该方法，因为 create 方法没有返回任何东西(void)。
+
+Mockito 提供 *verify()* 方法来确保方法调用的行为。
+
+[source,java]
+----
+verify(orderService, times(1)).createOrder(order);
+----
+
+上面一行可以验证该**方法只被调用了一次**！
+
+*ArgumentCaptor* 用于**捕获模拟方法的参数**。由于 POST API 调用返回一个订单对象，因此我提供了 ArgumentCaptor 类型作为订单。
+
+[source,java]
+----
+verify(orderService).createOrder(orderArgumentCaptor.capture());
+----
+
+上述行将验证模拟服务将采用 Order 对象并执行服务方法。然后我从中取出 captor 的值并与实际值进行比较。
+
+[source,java]
+----
+Order orderCreated = orderArgumentCaptor.getValue();
+assertEquals("john", orderCreated.getBuyer());
+----
+
+👉 ✔️ 让我们编写一个用于**删除订单**的服务测试。
+这里也遵循相同的代码，就像我们测试 POST 服务方法一样。
+在这里，ArgumentCaptor 的类型被视为 Long，因为服务方法接受 Long ID。
+正如我们之前所做的那样，再次将 captor 值与实际值进行比较！
+
+[source,java]
+----
+@Test
+public void testDeleteOrder() {
+    Order order = new Order(13L, "simen", 120.0, 10);
+    orderService.deleteOrderById(order.getId());
+    verify(orderService, times(1)).deleteOrderById(order.getId());
+    ArgumentCaptor<Long> orderArgumentCaptor = ArgumentCaptor.forClass(Long.class);
+    verify(orderService).deleteOrderById(orderArgumentCaptor.capture());
+    Long orderIdDeleted = orderArgumentCaptor.getValue();
+    assertNotNull(orderIdDeleted);
+    assertEquals(13L, orderIdDeleted);
+}
+----
+
+现在服务的基本测试用例已经完成! ❤️
+
+现在运行测试类并查看结果… 💪 全部通过! 😍

@@ -1,0 +1,195 @@
+= 编写集成测试
+
+正如我之前提到的，这不像单元测试。在这种情况下，我们必须改变整个方法。
+为我们的订单服务编写集成测试的目的是**确保与订单相关的功能在连接流程中的所有层时都能正常工作**。
+层将是 controller、service、repository、entity、异常配置等。
+
+所以我们不能在这里嘲笑……对！我们必须做一些实际的操作。让我们首先为此设置类。
+
+[source,java]
+----
+package com.rest.order;
+
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.rest.order.models.Order;
+import com.rest.order.repositories.OrderRepository;
+import com.rest.order.services.OrderService;
+import org.junit.jupiter.api.BeforeAll;
+import org.junit.jupiter.api.Test;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.boot.test.web.client.TestRestTemplate;
+import org.springframework.boot.test.web.server.LocalServerPort;
+import org.springframework.core.ParameterizedTypeReference;
+import org.springframework.http.*;
+import org.springframework.test.context.jdbc.Sql;
+
+import java.util.List;
+import java.util.Objects;
+
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
+
+
+@SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
+public class OrderApiIntegrationTest {
+
+    @LocalServerPort
+    private int port;
+
+    @Autowired
+    private TestRestTemplate restTemplate;
+
+    @Autowired
+    private OrderRepository orderRepository;
+
+    @Autowired
+    private OrderService orderService;
+
+    private static HttpHeaders headers;
+
+    private final ObjectMapper objectMapper = new ObjectMapper();
+
+    @BeforeAll
+    public static void init() {
+        headers = new HttpHeaders();
+        headers.setContentType(MediaType.APPLICATION_JSON);
+    }
+    private String createURLWithPort() {
+        return "http://localhost:" + port + "/api/orders";
+    }
+}
+----
+
+*SpringBootTest* 注解**加载完整的 Spring 应用程序上下文并提供一个模拟 Web 环境**。
+我已经给出了一个附加条件，可以在**随机端口**上启动模拟 Web 环境！
+
+*LocalServerPort* 注解用于将该端口绑定到 API URL。然后我在一个单独的方法中构建了 URL，可以在整个类中重用。
+
+
+现在我已经**__注入了真正的 service 和 repository 层__**——不像以前那样。我使用了 *Autowired* 注解而不是 Mock 或 MockBean！
+
+我们可以简单地使用 *TestRestTemplate* 通过整个应用程序执行 API 调用！
+
+👉 ✔️ 让我们为**获取订单的方法**编写一个集成测试。
+
+[source,java]
+----
+@Test
+@Sql(statements = "INSERT INTO orders(id, buyer, price, qty) VALUES (2, 'john', 24, 1)", executionPhase = Sql.ExecutionPhase.BEFORE_TEST_METHOD)
+@Sql(statements = "DELETE FROM orders WHERE id='2'", executionPhase = Sql.ExecutionPhase.AFTER_TEST_METHOD)
+public void testOrdersList() {
+    HttpEntity<String> entity = new HttpEntity<>(null, headers);
+    ResponseEntity<List<Order>> response = restTemplate.exchange(
+            createURLWithPort(), HttpMethod.GET, entity, new ParameterizedTypeReference<List<Order>>(){});
+    List<Order> orderList = response.getBody();
+    assert orderList != null;
+    assertEquals(response.getStatusCodeValue(), 200);
+    assertEquals(orderList.size(), orderService.getOrders().size());
+    assertEquals(orderList.size(), orderRepository.findAll().size());
+}
+----
+
+有什么新东西在这里吗？ 😎
+
+您应该看到 *“Sql”* 注解。它的目的是什么？好吧……我告诉过你我们将采取实际行动。
+因此，我们应该**确保我们的数据库在开发团队中的任何人运行集成测试后没有受到污染**！
+数据不应该改变！我们可以为每个测试方法使用这个注解，并告诉 Spring Boot 我们需要在运行测试时**执行一些手动 SQL 命令**。
+
+例如：如果我们在测试 POST API 调用时创建一个新订单，会发生什么？
+有意外的数据吗？然后我们改变了原始数据！这是不正确的……那我们应该怎么做？
+*运行测试用例后，我们应该删除该命令*！简单的！😃
+
+我使用了 2️⃣ 个 SQL 命令来创建和删除每个测试对象。
+我们可以提供一个名为 *executionPhase* 的参数。
+应用程序应该在哪个阶段执行 SQL 命令会很重要。
+所以我使用了 `BEFORE_TEST_METHOD` 来表示 `SAVE` 和 `AFTER_TEST_METHOD` 来表示 `DELETE`。
+
+* 我在 `TestRestTeamplate` 类中使用了 exchange 方法。在这种方法中，我期望一个订单列表。
+* 这里需要 *HttpEntity* 对象作为参数发送。
+由于 GET 调用不需要方法体，因此我使用 NULL 正文创建了它。
+* *Headers* 已在 *BeforeAll* 测试注解中初始化。
+
+然后我们只需要将响应与对 service 和 repository 层的直接方法调用进行比较。状态码还检查其是否为 200。
+*然后我们可以保证，如果有人从外部源调用 API，它会给出正确的结果，就像 repository 和 service 单独给出的一样*.
+
+[source,java]
+----
+assertEquals(orderList.size(), orderService.getOrders().size());
+assertEquals(orderList.size(), orderRepository.findAll().size());
+----
+
+由于我使用 SQL 命令只插入了 1 个对象，因此该测试将确保响应大小为 1。
+
+👉 ✔️ 让我们为**通过 ID 获取 Order 的方法**编写一个集成测试。
+我们需要修改 URL，因为它现在采用了 *path variable*！
+和之前一样，我们需要通过 rest 调用并将响应与 service、repository 方法调用进行比较。
+
+[source,java]
+----
+@Test
+@Sql(statements = "INSERT INTO orders(id, buyer, price, qty) VALUES (20, 'sam', 50, 4)", executionPhase = Sql.ExecutionPhase.BEFORE_TEST_METHOD)
+@Sql(statements = "DELETE FROM orders WHERE id='20'", executionPhase = Sql.ExecutionPhase.AFTER_TEST_METHOD)
+public void testOrderById() throws JsonProcessingException {
+    HttpEntity<String> entity = new HttpEntity<>(null, headers);
+    ResponseEntity<Order> response = restTemplate.exchange(
+            (createURLWithPort() + "/20"), HttpMethod.GET, entity, Order.class);
+    Order orderRes = response.getBody();
+    String expected = "{\"id\":20,\"buyer\":\"sam\",\"price\":50.0,\"qty\":4}";
+    assertEquals(response.getStatusCodeValue(), 200);
+    assertEquals(expected, objectMapper.writeValueAsString(orderRes));
+    assert orderRes != null;
+    assertEquals(orderRes, orderService.getOrderById(20L));
+    assertEquals(orderRes.getBuyer(), orderService.getOrderById(20L).getBuyer());
+    assertEquals(orderRes, orderRepository.findById(20L).orElse(null));
+}
+----
+
+👉 ✔️ 让我们为**创建新订单的方法**编写一个集成测试。
+在这种情况下，我们使用 POST 调用。
+然后我们必须提供一个方法体。
+在那里，我们必须使用转换为 JSON 字符串的订单对象来更新 *HttpEntity*。
+
+而且我们不需要 2️ 个 SQL 命令。
+为什么？因为我们在方法本身内部创建并保存了一个对象。因此，我们只需要在执行测试方法后将其删除即可。
+
+
+[source,java]
+----
+@Test
+@Sql(statements = "DELETE FROM orders WHERE id='3'", executionPhase = Sql.ExecutionPhase.AFTER_TEST_METHOD)
+public void testCreateOrder() throws JsonProcessingException {
+    Order order = new Order(3L, "peter", 30.0, 3);
+    HttpEntity<String> entity = new HttpEntity<>(objectMapper.writeValueAsString(order), headers);
+    ResponseEntity<Order> response = restTemplate.exchange(
+            createURLWithPort(), HttpMethod.POST, entity, Order.class);
+    assertEquals(response.getStatusCodeValue(), 201);
+    Order orderRes = Objects.requireNonNull(response.getBody());
+    assertEquals(orderRes.getBuyer(), "peter");
+    assertEquals(orderRes.getBuyer(), orderRepository.save(order).getBuyer());
+}
+----
+
+👉 ✔️ 让我们为**删除 Order 的方法**编写一个集成测试。
+测试应在交换方法中使用 DELETE 类型编写。
+我们需要修改 URL，因为现在它采用了 *path variable*！
+我在 controller 层中为删除方法返回一个字符串。
+因此，我已经使用 JUnit 检查了该字符串以进行验证。
+
+[source,java]
+----
+@Test
+@Sql(statements = "INSERT INTO orders(id, buyer, price, qty) VALUES (6, 'alex', 75, 3)", executionPhase = Sql.ExecutionPhase.BEFORE_TEST_METHOD)
+@Sql(statements = "DELETE FROM orders WHERE id='6'", executionPhase = Sql.ExecutionPhase.AFTER_TEST_METHOD)
+public void testDeleteOrder() {
+    ResponseEntity<String> response = restTemplate.exchange(
+            (createURLWithPort() + "/6"), HttpMethod.DELETE, null, String.class);
+    String orderRes = response.getBody();
+    assertEquals(response.getStatusCodeValue(), 200);
+    assertNotNull(orderRes);
+    assertEquals(orderRes, "Order deleted - Order ID:6");
+}
+----
+
+现在我们微服务的所有集成案例都已完成！❤️

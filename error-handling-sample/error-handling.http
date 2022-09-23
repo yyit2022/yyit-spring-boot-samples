@@ -1,0 +1,14 @@
+GET http://localhost:8080/user/hello
+
+###
+
+POST http://localhost:8080/example
+Content-Type: application/json
+
+
+{
+    "name":"tom",
+    "favoriteMovie":""
+}
+
+###
