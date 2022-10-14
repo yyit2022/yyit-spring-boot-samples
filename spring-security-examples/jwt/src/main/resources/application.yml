@@ -1,0 +1,28 @@
+yyit:
+  app:
+    rsa:
+      private-key: classpath:certs/private.pem
+      public-key: classpath:certs/public.pem
+    token:
+      jwt-expiration-ms: 1000
+      jwt-refresh-expiration-ms: 500000
+
+spring:
+  h2:
+    console:
+      enabled: true
+      path: /h2-ui
+      settings:
+        web-allow-others: true
+  datasource:
+    url: jdbc:h2:file:./testdb
+    driverClassName: org.h2.Driver
+    username: sa
+    password:
+  jpa:
+    show-sql: true
+    properties:
+      hibernate:
+        dialect: org.hibernate.dialect.H2Dialect
+    hibernate:
+      ddl-auto: update

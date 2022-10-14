@@ -1,0 +1,72 @@
+POST http://localhost:8080/token
+Authorization: Basic mod:123456
+
+#Authorization: Basic a2V5dSUzQXBhc3N3b3Jk
+
+
+###
+
+POST http://localhost:8080/token
+Authorization: Basic zkoder:123456
+
+#Authorization: Basic a2V5dSUzQXBhc3N3b3Jk
+
+
+###
+
+POST http://localhost:8080/token
+Content-Type: application/json
+
+
+{
+  "username": "mod",
+  "password": "123456"
+}
+
+###
+
+GET http://localhost:8080
+Authorization: Bearer eyJhbGciOiJSUzI1NiJ9.eyJpc3MiOiJzZWxmIiwic3ViIjoibW9kIiwiZXhwIjoxNjY0MzMxNjUwLCJpYXQiOjE2NjQzMjgwNTAsInNjb3BlIjoiUk9MRV9VU0VSIFJPTEVfTU9ERVJBVE9SIn0.eMTc4Hy15YC0eKQaDLBAkHiQtsdetxkfijv6i6s3qofC103284hTDGSskyTlAO9vmID2d1JaaSQFlP6YVSwBCw5pYGPzCDOhoiFpfFfd1qnpk1uNF0aRUpD27_x-1F-Oap9nGDczFYar4JqOs6GHsXfPndFnGWUottTc4Fnnrbubvp0CkehxwIBmgJicyPPHoajyXIjr2MUSYhjbOWzKCz20J8Mq48JlT-te5SE7zD5rpkHzoOvsNhp8FLR6v5LUPGaZbmtKuAV7pd7rNFYTdCrh97vIUfO2ansC-MQnX5NdSUh4Oq4vdOuzMpYm95n_Bo4oylSM8wW3NwxImwyQwA
+
+###
+
+GET http://localhost:8080/secure
+Authorization: Bearer eyJhbGciOiJSUzI1NiJ9.eyJpc3MiOiJzZWxmIiwic3ViIjoibW9kIiwiZXhwIjoxNjY0MzMxNjUwLCJpYXQiOjE2NjQzMjgwNTAsInNjb3BlIjoiUk9MRV9VU0VSIFJPTEVfTU9ERVJBVE9SIn0.eMTc4Hy15YC0eKQaDLBAkHiQtsdetxkfijv6i6s3qofC103284hTDGSskyTlAO9vmID2d1JaaSQFlP6YVSwBCw5pYGPzCDOhoiFpfFfd1qnpk1uNF0aRUpD27_x-1F-Oap9nGDczFYar4JqOs6GHsXfPndFnGWUottTc4Fnnrbubvp0CkehxwIBmgJicyPPHoajyXIjr2MUSYhjbOWzKCz20J8Mq48JlT-te5SE7zD5rpkHzoOvsNhp8FLR6v5LUPGaZbmtKuAV7pd7rNFYTdCrh97vIUfO2ansC-MQnX5NdSUh4Oq4vdOuzMpYm95n_Bo4oylSM8wW3NwxImwyQwA
+
+###
+
+POST http://localhost:8080/api/auth/signup
+Content-Type: application/json
+
+{
+  "username": "mod",
+  "email": "mod@yyit.com",
+  "password": "123456",
+  "role": ["mod","user"]
+}
+
+###
+
+POST http://localhost:8080/api/auth/signup
+Content-Type: application/json
+
+{
+  "username": "admin",
+  "email": "admin@yyit.com",
+  "password": "123456",
+  "role": ["admin"]
+}
+
+###
+
+POST http://localhost:8080/api/auth/signup
+Content-Type: application/json
+
+{
+  "username": "zkoder",
+  "email": "zkoder@yyit.com",
+  "password": "123456",
+  "role": ["user"]
+}
+
+###
